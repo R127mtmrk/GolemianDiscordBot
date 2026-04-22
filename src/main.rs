@@ -1,5 +1,6 @@
 mod commands;
 mod database;
+mod modlog;
 
 use std::sync::Arc;
 
@@ -14,6 +15,8 @@ use commands::giveaway::{check_giveaways, GIVEAWAY_GROUP};
 use commands::help::HELP_GROUP;
 use commands::moderation::MODERATION_GROUP;
 use commands::poll::POLL_GROUP;
+use commands::server::SERVER_GROUP;
+use commands::utility::UTILITY_GROUP;
 use database::DatabaseKey;
 
 struct Handler;
@@ -123,7 +126,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .group(&MODERATION_GROUP)
         .group(&GIVEAWAY_GROUP)
         .group(&POLL_GROUP)
-        .group(&HELP_GROUP);
+        .group(&HELP_GROUP)
+        .group(&UTILITY_GROUP)
+        .group(&SERVER_GROUP);
 
     framework.configure(Configuration::new().prefix("!").allow_dm(false));
 

@@ -6,6 +6,7 @@ use serenity::prelude::*;
 use sqlx::SqlitePool;
 
 use crate::database::{DatabaseKey, Warning};
+use crate::modlog::{mod_log_embed, send_mod_log};
 
 const RED: u32 = 0xE74C3C;
 const GREEN: u32 = 0x2ECC71;
@@ -99,6 +100,7 @@ async fn ban(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                 &format!("✅ <@{}> a été **banni**.\n**Raison :** {}", user_id, reason),
             )
             .await;
+            send_mod_log(ctx, guild_id, mod_log_embed("🔨 Ban", RED, msg.author.id, user_id, &reason)).await;
         }
         Err(e) => {
             error_embed(ctx, msg, &format!("❌ Impossible de bannir: {}", e)).await;
@@ -132,6 +134,7 @@ async fn unban(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     match guild_id.unban(&ctx.http, user_id).await {
         Ok(_) => {
             success_embed(ctx, msg, &format!("✅ <@{}> a été **débanni**.", user_id)).await;
+            send_mod_log(ctx, guild_id, mod_log_embed("🔓 Unban", GREEN, msg.author.id, user_id, "—")).await;
         }
         Err(e) => {
             error_embed(ctx, msg, &format!("❌ Impossible de débannir: {}", e)).await;
@@ -175,6 +178,7 @@ async fn kick(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                 &format!("✅ <@{}> a été **expulsé**.\n**Raison :** {}", user_id, reason),
             )
             .await;
+            send_mod_log(ctx, guild_id, mod_log_embed("👢 Kick", 0xE67E22, msg.author.id, user_id, &reason)).await;
         }
         Err(e) => {
             error_embed(ctx, msg, &format!("❌ Impossible d'expulser: {}", e)).await;
@@ -253,6 +257,7 @@ async fn mute(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                 ),
             )
             .await;
+            send_mod_log(ctx, guild_id, mod_log_embed("🔇 Mute", 0x9B59B6, msg.author.id, user_id, &format!("{} — {}", dur_str, reason))).await;
         }
         Err(e) => {
             error_embed(ctx, msg, &format!("❌ Impossible de muter: {}", e)).await;
@@ -300,6 +305,7 @@ async fn unmute(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
                 &format!("🔊 <@{}> n'est plus **muté**.", user_id),
             )
             .await;
+            send_mod_log(ctx, guild_id, mod_log_embed("🔊 Unmute", GREEN, msg.author.id, user_id, "—")).await;
         }
         Err(e) => {
             error_embed(ctx, msg, &format!("❌ Impossible de démuter: {}", e)).await;
@@ -365,6 +371,7 @@ async fn warn(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
         ),
     )
     .await;
+    send_mod_log(ctx, guild_id, mod_log_embed("⚠️ Warn", 0xF39C12, msg.author.id, user_id, &reason)).await;
     Ok(())
 }
 

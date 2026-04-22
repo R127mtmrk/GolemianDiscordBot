@@ -79,6 +79,47 @@ Affiche tous les giveaways en cours sur le serveur.
 
 ---
 
+## Utilitaires
+
+### `!slowmode <secondes>`
+Active le mode lent sur le salon actuel. `0` pour désactiver. Maximum 21600 (6h).
+- **Permission requise :** Gérer les salons
+- **Exemple :** `!slowmode 30` — `!slowmode 0`
+
+### `!lock [#salon]`
+Verrouille un salon en bloquant les messages pour @everyone. Sans argument, verrouille le salon actuel.
+- **Permission requise :** Gérer les salons
+- **Exemple :** `!lock` — `!lock #général`
+
+### `!unlock [#salon]`
+Déverrouille un salon.
+- **Permission requise :** Gérer les salons
+- **Exemple :** `!unlock` — `!unlock #général`
+
+### `!userinfo [@utilisateur]`
+Affiche les informations d'un membre : date de création du compte, date d'arrivée, rôles, nombre d'avertissements. Sans argument, affiche les infos de l'auteur.
+- **Exemple :** `!userinfo @Jean`
+
+### `!setmodlog #salon`
+Définit le salon où sont envoyés les logs de toutes les actions de modération (ban, kick, mute, warn, etc.).
+- **Permission requise :** Gérer le serveur
+- **Exemple :** `!setmodlog #logs-modération`
+
+---
+
+## Structure de serveur
+
+### `!sbackup`
+Exporte la structure complète du serveur (rôles, catégories, salons) dans un fichier `backup.json`.
+- **Permission requise :** Gérer le serveur
+
+### `!srestore`
+Recrée la structure d'un serveur depuis un fichier `backup.json` (à joindre en pièce jointe).
+- **Permission requise :** Administrateur
+- **Exemple :** Taper `!srestore` avec le fichier `backup.json` en pièce jointe
+
+---
+
 ## Sondages
 
 ### `!poll <question>`

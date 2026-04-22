@@ -86,5 +86,43 @@ async fn init_tables(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     .execute(pool)
     .await?;
 
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS guild_config (
+            guild_id            TEXT PRIMARY KEY,
+            mod_log_channel_id  TEXT
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_mod_log_channel(pool: &SqlitePool, guild_id: &str) -> Option<u64> {
+    let result: Option<(String,)> = sqlx::query_as(
+        "SELECT mod_log_channel_id FROM guild_config WHERE guild_id = ? AND mod_log_channel_id IS NOT NULL",
+    )
+    .bind(guild_id)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+
+    result.and_then(|(id,)| id.parse::<u64>().ok())
+}
+
+pub async fn set_mod_log_channel(
+    pool: &SqlitePool,
+    guild_id: &str,
+    channel_id: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO guild_config (guild_id, mod_log_channel_id) VALUES (?, ?)
+         ON CONFLICT(guild_id) DO UPDATE SET mod_log_channel_id = excluded.mod_log_channel_id",
+    )
+    .bind(guild_id)
+    .bind(channel_id)
+    .execute(pool)
+    .await?;
     Ok(())
 }
