@@ -36,6 +36,38 @@ fn parse_user_id(s: &str) -> Option<UserId> {
     id_str.parse::<u64>().ok().map(UserId::new)
 }
 
+fn parse_users_and_rest(args: &mut Args) -> (Vec<UserId>, String) {
+    let mut users = Vec::new();
+    loop {
+        match args.single::<String>() {
+            Ok(raw) => {
+                if let Some(uid) = parse_user_id(&raw) {
+                    users.push(uid);
+                } else {
+                    let rest = if args.is_empty() {
+                        raw
+                    } else {
+                        format!("{} {}", raw, args.rest())
+                    };
+                    return (users, rest);
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    (users, String::new())
+}
+
+async fn send_embed(ctx: &Context, msg: &Message, color: u32, text: &str) {
+    let _ = msg
+        .channel_id
+        .send_message(
+            &ctx.http,
+            CreateMessage::new().embed(CreateEmbed::new().color(color).description(text)),
+        )
+        .await;
+}
+
 async fn get_pool(ctx: &Context) -> SqlitePool {
     ctx.data.read().await.get::<DatabaseKey>().unwrap().clone()
 }
@@ -71,41 +103,32 @@ pub struct Moderation;
 #[usage("@utilisateur [raison]")]
 async fn ban(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
+    let (user_ids, reason) = parse_users_and_rest(&mut args);
+    let reason = if reason.is_empty() { "Aucune raison fournie".to_string() } else { reason };
 
-    let raw = match args.single::<String>() {
-        Ok(s) => s,
-        Err(_) => {
-            error_embed(ctx, msg, "❌ Usage: `!ban @utilisateur [raison]`").await;
-            return Ok(());
-        }
-    };
-    let user_id = match parse_user_id(&raw) {
-        Some(id) => id,
-        None => {
-            error_embed(ctx, msg, "❌ Utilisateur introuvable.").await;
-            return Ok(());
-        }
-    };
-    let reason = if args.is_empty() {
-        "Aucune raison fournie".to_string()
-    } else {
-        args.rest().to_string()
-    };
+    if user_ids.is_empty() {
+        error_embed(ctx, msg, "❌ Usage: `!ban @user1 [@user2 ...] [raison]`").await;
+        return Ok(());
+    }
 
-    match guild_id.ban_with_reason(&ctx.http, user_id, 0, &reason).await {
-        Ok(_) => {
-            success_embed(
-                ctx,
-                msg,
-                &format!("✅ <@{}> a été **banni**.\n**Raison :** {}", user_id, reason),
-            )
-            .await;
-            send_mod_log(ctx, guild_id, mod_log_embed("🔨 Ban", RED, msg.author.id, user_id, &reason)).await;
-        }
-        Err(e) => {
-            error_embed(ctx, msg, &format!("❌ Impossible de bannir: {}", e)).await;
+    let mut success = Vec::new();
+    let mut errors = Vec::new();
+
+    for user_id in &user_ids {
+        match guild_id.ban_with_reason(&ctx.http, *user_id, 0, &reason).await {
+            Ok(_) => {
+                success.push(format!("<@{}>", user_id));
+                send_mod_log(ctx, guild_id, mod_log_embed("🔨 Ban", RED, msg.author.id, *user_id, &reason)).await;
+            }
+            Err(e) => errors.push(format!("<@{}>: {}", user_id, e)),
         }
     }
+
+    let mut text = String::new();
+    if !success.is_empty() { text.push_str(&format!("✅ Bannis : {}\n**Raison :** {}", success.join(", "), reason)); }
+    if !errors.is_empty() { text.push_str(&format!("\n❌ Erreurs : {}", errors.join(", "))); }
+    let color = if errors.is_empty() { GREEN } else if success.is_empty() { RED } else { 0xF39C12 };
+    send_embed(ctx, msg, color, &text).await;
     Ok(())
 }
 
@@ -115,31 +138,31 @@ async fn ban(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 #[usage("<user_id> [raison]")]
 async fn unban(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
+    let (user_ids, _) = parse_users_and_rest(&mut args);
 
-    let raw = match args.single::<String>() {
-        Ok(s) => s,
-        Err(_) => {
-            error_embed(ctx, msg, "❌ Usage: `!unban <user_id> [raison]`").await;
-            return Ok(());
-        }
-    };
-    let user_id = match parse_user_id(&raw) {
-        Some(id) => id,
-        None => {
-            error_embed(ctx, msg, "❌ ID utilisateur invalide.").await;
-            return Ok(());
-        }
-    };
+    if user_ids.is_empty() {
+        error_embed(ctx, msg, "❌ Usage: `!unban <id1> [<id2> ...]`").await;
+        return Ok(());
+    }
 
-    match guild_id.unban(&ctx.http, user_id).await {
-        Ok(_) => {
-            success_embed(ctx, msg, &format!("✅ <@{}> a été **débanni**.", user_id)).await;
-            send_mod_log(ctx, guild_id, mod_log_embed("🔓 Unban", GREEN, msg.author.id, user_id, "—")).await;
-        }
-        Err(e) => {
-            error_embed(ctx, msg, &format!("❌ Impossible de débannir: {}", e)).await;
+    let mut success = Vec::new();
+    let mut errors = Vec::new();
+
+    for user_id in &user_ids {
+        match guild_id.unban(&ctx.http, *user_id).await {
+            Ok(_) => {
+                success.push(format!("<@{}>", user_id));
+                send_mod_log(ctx, guild_id, mod_log_embed("🔓 Unban", GREEN, msg.author.id, *user_id, "—")).await;
+            }
+            Err(e) => errors.push(format!("<@{}>: {}", user_id, e)),
         }
     }
+
+    let mut text = String::new();
+    if !success.is_empty() { text.push_str(&format!("✅ Débannis : {}", success.join(", "))); }
+    if !errors.is_empty() { text.push_str(&format!("\n❌ Erreurs : {}", errors.join(", "))); }
+    let color = if errors.is_empty() { GREEN } else if success.is_empty() { RED } else { 0xF39C12 };
+    send_embed(ctx, msg, color, &text).await;
     Ok(())
 }
 
@@ -149,41 +172,32 @@ async fn unban(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 #[usage("@utilisateur [raison]")]
 async fn kick(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
+    let (user_ids, reason) = parse_users_and_rest(&mut args);
+    let reason = if reason.is_empty() { "Aucune raison fournie".to_string() } else { reason };
 
-    let raw = match args.single::<String>() {
-        Ok(s) => s,
-        Err(_) => {
-            error_embed(ctx, msg, "❌ Usage: `!kick @utilisateur [raison]`").await;
-            return Ok(());
-        }
-    };
-    let user_id = match parse_user_id(&raw) {
-        Some(id) => id,
-        None => {
-            error_embed(ctx, msg, "❌ Utilisateur introuvable.").await;
-            return Ok(());
-        }
-    };
-    let reason = if args.is_empty() {
-        "Aucune raison fournie".to_string()
-    } else {
-        args.rest().to_string()
-    };
+    if user_ids.is_empty() {
+        error_embed(ctx, msg, "❌ Usage: `!kick @user1 [@user2 ...] [raison]`").await;
+        return Ok(());
+    }
 
-    match guild_id.kick_with_reason(&ctx.http, user_id, &reason).await {
-        Ok(_) => {
-            success_embed(
-                ctx,
-                msg,
-                &format!("✅ <@{}> a été **expulsé**.\n**Raison :** {}", user_id, reason),
-            )
-            .await;
-            send_mod_log(ctx, guild_id, mod_log_embed("👢 Kick", 0xE67E22, msg.author.id, user_id, &reason)).await;
-        }
-        Err(e) => {
-            error_embed(ctx, msg, &format!("❌ Impossible d'expulser: {}", e)).await;
+    let mut success = Vec::new();
+    let mut errors = Vec::new();
+
+    for user_id in &user_ids {
+        match guild_id.kick_with_reason(&ctx.http, *user_id, &reason).await {
+            Ok(_) => {
+                success.push(format!("<@{}>", user_id));
+                send_mod_log(ctx, guild_id, mod_log_embed("👢 Kick", 0xE67E22, msg.author.id, *user_id, &reason)).await;
+            }
+            Err(e) => errors.push(format!("<@{}>: {}", user_id, e)),
         }
     }
+
+    let mut text = String::new();
+    if !success.is_empty() { text.push_str(&format!("✅ Expulsés : {}\n**Raison :** {}", success.join(", "), reason)); }
+    if !errors.is_empty() { text.push_str(&format!("\n❌ Erreurs : {}", errors.join(", "))); }
+    let color = if errors.is_empty() { GREEN } else if success.is_empty() { RED } else { 0xF39C12 };
+    send_embed(ctx, msg, color, &text).await;
     Ok(())
 }
 
@@ -193,25 +207,18 @@ async fn kick(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 #[usage("@utilisateur <durée> [raison]  — durée: 10m, 2h, 1d")]
 async fn mute(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
+    let (user_ids, rest) = parse_users_and_rest(&mut args);
 
-    let raw = match args.single::<String>() {
-        Ok(s) => s,
-        Err(_) => {
-            error_embed(ctx, msg, "❌ Usage: `!mute @utilisateur <durée> [raison]`").await;
-            return Ok(());
-        }
-    };
-    let user_id = match parse_user_id(&raw) {
-        Some(id) => id,
+    if user_ids.is_empty() {
+        error_embed(ctx, msg, "❌ Usage: `!mute @user1 [@user2 ...] <durée> [raison]`").await;
+        return Ok(());
+    }
+
+    // Le premier mot du reste est la durée
+    let mut rest_parts = rest.splitn(2, ' ');
+    let dur_str = match rest_parts.next().filter(|s| !s.is_empty()) {
+        Some(s) => s.to_string(),
         None => {
-            error_embed(ctx, msg, "❌ Utilisateur introuvable.").await;
-            return Ok(());
-        }
-    };
-
-    let dur_str = match args.single::<String>() {
-        Ok(s) => s,
-        Err(_) => {
             error_embed(ctx, msg, "❌ Durée manquante. Exemple: `10m`, `2h`, `1d`").await;
             return Ok(());
         }
@@ -223,12 +230,8 @@ async fn mute(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
             return Ok(());
         }
     };
-
-    let reason = if args.is_empty() {
-        "Aucune raison fournie".to_string()
-    } else {
-        args.rest().to_string()
-    };
+    let reason = rest_parts.next().unwrap_or("").trim();
+    let reason = if reason.is_empty() { "Aucune raison fournie".to_string() } else { reason.to_string() };
 
     let until = Utc::now() + duration;
     let ts = match serenity::model::Timestamp::from_unix_timestamp(until.timestamp()) {
@@ -239,30 +242,27 @@ async fn mute(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
         }
     };
 
-    match guild_id
-        .edit_member(
-            &ctx.http,
-            user_id,
-            EditMember::new().disable_communication_until_datetime(ts),
-        )
-        .await
-    {
-        Ok(_) => {
-            success_embed(
-                ctx,
-                msg,
-                &format!(
-                    "🔇 <@{}> a été **muté** pendant **{}**.\n**Raison :** {}",
-                    user_id, dur_str, reason
-                ),
-            )
-            .await;
-            send_mod_log(ctx, guild_id, mod_log_embed("🔇 Mute", 0x9B59B6, msg.author.id, user_id, &format!("{} — {}", dur_str, reason))).await;
-        }
-        Err(e) => {
-            error_embed(ctx, msg, &format!("❌ Impossible de muter: {}", e)).await;
+    let mut success = Vec::new();
+    let mut errors = Vec::new();
+
+    for user_id in &user_ids {
+        match guild_id
+            .edit_member(&ctx.http, *user_id, EditMember::new().disable_communication_until_datetime(ts))
+            .await
+        {
+            Ok(_) => {
+                success.push(format!("<@{}>", user_id));
+                send_mod_log(ctx, guild_id, mod_log_embed("🔇 Mute", 0x9B59B6, msg.author.id, *user_id, &format!("{} — {}", dur_str, reason))).await;
+            }
+            Err(e) => errors.push(format!("<@{}>: {}", user_id, e)),
         }
     }
+
+    let mut text = String::new();
+    if !success.is_empty() { text.push_str(&format!("🔇 Mutés **{}** : {}\n**Raison :** {}", dur_str, success.join(", "), reason)); }
+    if !errors.is_empty() { text.push_str(&format!("\n❌ Erreurs : {}", errors.join(", "))); }
+    let color = if errors.is_empty() { GREEN } else if success.is_empty() { RED } else { 0xF39C12 };
+    send_embed(ctx, msg, color, &text).await;
     Ok(())
 }
 
@@ -321,57 +321,46 @@ async fn unmute(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 async fn warn(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let guild_id = msg.guild_id.unwrap();
     let pool = get_pool(ctx).await;
+    let (user_ids, reason) = parse_users_and_rest(&mut args);
 
-    let raw = match args.single::<String>() {
-        Ok(s) => s,
-        Err(_) => {
-            error_embed(ctx, msg, "❌ Usage: `!warn @utilisateur <raison>`").await;
-            return Ok(());
-        }
-    };
-    let user_id = match parse_user_id(&raw) {
-        Some(id) => id,
-        None => {
-            error_embed(ctx, msg, "❌ Utilisateur introuvable.").await;
-            return Ok(());
-        }
-    };
-    let reason = args.rest().trim().to_string();
+    if user_ids.is_empty() {
+        error_embed(ctx, msg, "❌ Usage: `!warn @user1 [@user2 ...] <raison>`").await;
+        return Ok(());
+    }
     if reason.is_empty() {
         error_embed(ctx, msg, "❌ Raison manquante.").await;
         return Ok(());
     }
 
     let now = Utc::now().timestamp();
-    sqlx::query(
-        "INSERT INTO warnings (guild_id, user_id, moderator_id, reason, created_at) VALUES (?, ?, ?, ?, ?)",
-    )
-    .bind(guild_id.get().to_string())
-    .bind(user_id.get().to_string())
-    .bind(msg.author.id.get().to_string())
-    .bind(&reason)
-    .bind(now)
-    .execute(&pool)
-    .await?;
+    let mut lines = Vec::new();
 
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM warnings WHERE guild_id = ? AND user_id = ?",
-    )
-    .bind(guild_id.get().to_string())
-    .bind(user_id.get().to_string())
-    .fetch_one(&pool)
-    .await?;
+    for user_id in &user_ids {
+        let _ = sqlx::query(
+            "INSERT INTO warnings (guild_id, user_id, moderator_id, reason, created_at) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(guild_id.get().to_string())
+        .bind(user_id.get().to_string())
+        .bind(msg.author.id.get().to_string())
+        .bind(&reason)
+        .bind(now)
+        .execute(&pool)
+        .await;
 
-    success_embed(
-        ctx,
-        msg,
-        &format!(
-            "⚠️ <@{}> a reçu un **avertissement** (total: {}).\n**Raison :** {}",
-            user_id, count.0, reason
-        ),
-    )
-    .await;
-    send_mod_log(ctx, guild_id, mod_log_embed("⚠️ Warn", 0xF39C12, msg.author.id, user_id, &reason)).await;
+        let count: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM warnings WHERE guild_id = ? AND user_id = ?",
+        )
+        .bind(guild_id.get().to_string())
+        .bind(user_id.get().to_string())
+        .fetch_one(&pool)
+        .await
+        .unwrap_or((0,));
+
+        lines.push(format!("⚠️ <@{}> (total: {})", user_id, count.0));
+        send_mod_log(ctx, guild_id, mod_log_embed("⚠️ Warn", 0xF39C12, msg.author.id, *user_id, &reason)).await;
+    }
+
+    send_embed(ctx, msg, 0xF39C12, &format!("{}\n**Raison :** {}", lines.join("\n"), reason)).await;
     Ok(())
 }
 
