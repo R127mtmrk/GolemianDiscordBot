@@ -11,6 +11,7 @@ use serenity::prelude::*;
 use tracing::{error, info};
 
 use commands::giveaway::{check_giveaways, GIVEAWAY_GROUP};
+use commands::help::HELP_GROUP;
 use commands::moderation::MODERATION_GROUP;
 use commands::poll::POLL_GROUP;
 use database::DatabaseKey;
@@ -121,7 +122,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let framework = StandardFramework::new()
         .group(&MODERATION_GROUP)
         .group(&GIVEAWAY_GROUP)
-        .group(&POLL_GROUP);
+        .group(&POLL_GROUP)
+        .group(&HELP_GROUP);
 
     framework.configure(Configuration::new().prefix("!").allow_dm(false));
 
