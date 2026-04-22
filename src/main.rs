@@ -1,6 +1,7 @@
 mod commands;
 mod database;
 mod modlog;
+mod tempvc;
 
 use std::sync::Arc;
 
@@ -16,6 +17,7 @@ use commands::help::HELP_GROUP;
 use commands::moderation::MODERATION_GROUP;
 use commands::poll::POLL_GROUP;
 use commands::server::SERVER_GROUP;
+use commands::tempvc::TEMPVC_GROUP;
 use commands::utility::UTILITY_GROUP;
 use database::DatabaseKey;
 
@@ -40,6 +42,10 @@ impl EventHandler for Handler {
                 }
             }
         });
+    }
+
+    async fn voice_state_update(&self, ctx: Context, old: Option<serenity::model::voice::VoiceState>, new: serenity::model::voice::VoiceState) {
+        tempvc::handle_voice_state(&ctx, old, new).await;
     }
 
     async fn reaction_add(&self, ctx: Context, reaction: Reaction) {
@@ -128,13 +134,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .group(&POLL_GROUP)
         .group(&HELP_GROUP)
         .group(&UTILITY_GROUP)
-        .group(&SERVER_GROUP);
+        .group(&SERVER_GROUP)
+        .group(&TEMPVC_GROUP);
 
     framework.configure(Configuration::new().prefix("!").allow_dm(false));
 
     let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT
-        | GatewayIntents::GUILD_MESSAGE_REACTIONS;
+        | GatewayIntents::GUILD_MESSAGE_REACTIONS
+        | GatewayIntents::GUILD_VOICE_STATES;
 
     let mut client = Client::builder(&token, intents)
         .event_handler(Handler)

@@ -95,6 +95,24 @@ async fn init_tables(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     .execute(pool)
     .await?;
 
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS temp_vc_config (
+            guild_id        TEXT PRIMARY KEY,
+            hub_channel_id  TEXT NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS temp_channels (
+            channel_id  TEXT PRIMARY KEY,
+            guild_id    TEXT NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await?;
+
     Ok(())
 }
 
