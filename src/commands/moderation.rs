@@ -60,7 +60,7 @@ async fn success_embed(ctx: &Context, msg: &Message, text: &str) {
 }
 
 #[group]
-#[commands(ban, kick, mute, unmute, warn, warnings, clearwarns, clear)]
+#[commands(ban, unban, kick, mute, unmute, warn, warnings, clearwarns, clear)]
 #[only_in(guilds)]
 pub struct Moderation;
 
@@ -102,6 +102,39 @@ async fn ban(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
         }
         Err(e) => {
             error_embed(ctx, msg, &format!("❌ Impossible de bannir: {}", e)).await;
+        }
+    }
+    Ok(())
+}
+
+#[command]
+#[required_permissions(BAN_MEMBERS)]
+#[description("Débannir un membre du serveur")]
+#[usage("<user_id> [raison]")]
+async fn unban(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    let guild_id = msg.guild_id.unwrap();
+
+    let raw = match args.single::<String>() {
+        Ok(s) => s,
+        Err(_) => {
+            error_embed(ctx, msg, "❌ Usage: `!unban <user_id> [raison]`").await;
+            return Ok(());
+        }
+    };
+    let user_id = match parse_user_id(&raw) {
+        Some(id) => id,
+        None => {
+            error_embed(ctx, msg, "❌ ID utilisateur invalide.").await;
+            return Ok(());
+        }
+    };
+
+    match guild_id.unban(&ctx.http, user_id).await {
+        Ok(_) => {
+            success_embed(ctx, msg, &format!("✅ <@{}> a été **débanni**.", user_id)).await;
+        }
+        Err(e) => {
+            error_embed(ctx, msg, &format!("❌ Impossible de débannir: {}", e)).await;
         }
     }
     Ok(())
