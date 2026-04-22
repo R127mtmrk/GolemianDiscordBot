@@ -4,13 +4,14 @@ use serenity::model::prelude::*;
 use serenity::prelude::*;
 
 #[group]
-#[commands(help)]
+#[commands(aide)]
 #[only_in(guilds)]
 pub struct Help;
 
 #[command]
+#[aliases("help")]
 #[description("Affiche la liste des commandes")]
-async fn help(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+async fn aide(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
     let embed = CreateEmbed::new()
         .color(0x5865F2)
         .title("📖 Aide — Golemian Bot")
