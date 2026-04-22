@@ -115,7 +115,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let token = std::env::var("DISCORD_TOKEN").expect("DISCORD_TOKEN manquant dans .env");
 
-    let pool = database::create_pool("sqlite:bot.db").await?;
+    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:bot.db".to_string());
+    let pool = database::create_pool(&db_url).await?;
 
     let framework = StandardFramework::new()
         .group(&MODERATION_GROUP)
