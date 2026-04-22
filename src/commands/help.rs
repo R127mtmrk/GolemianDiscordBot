@@ -20,12 +20,27 @@ async fn aide(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
             "`!ban @user [raison]` — Bannir\n\
              `!unban <id> [raison]` — Débannir\n\
              `!kick @user [raison]` — Expulser\n\
-             `!mute @user <durée> [raison]` — Timeout (ex: `10m`, `2h`, `1d`)\n\
+             `!mute @user <durée> [raison]` — Timeout (`10m`, `2h`, `1d`)\n\
              `!unmute @user` — Retirer le timeout\n\
              `!warn @user <raison>` — Avertir\n\
              `!warnings @user` — Voir les avertissements\n\
              `!clearwarns @user` — Effacer les avertissements\n\
              `!clear <1-100>` — Supprimer des messages",
+            false,
+        )
+        .field(
+            "🔧 Utilitaires",
+            "`!slowmode <secondes>` — Mode lent (`0` pour désactiver)\n\
+             `!lock [#salon]` — Verrouiller un salon\n\
+             `!unlock [#salon]` — Déverrouiller un salon\n\
+             `!userinfo [@user]` — Infos d'un membre\n\
+             `!setmodlog #salon` — Définir le salon des logs de modération",
+            false,
+        )
+        .field(
+            "🗂️ Structure de serveur",
+            "`!sbackup` — Exporter la structure du serveur en JSON\n\
+             `!srestore` — Recréer une structure depuis un fichier backup.json",
             false,
         )
         .field(
