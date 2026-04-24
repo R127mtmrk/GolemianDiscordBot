@@ -39,7 +39,7 @@ async fn aide(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
         )
         .field(
             "🗂️ Structure de serveur",
-            "`!sbackup` — Exporter la structure du serveur en JSON\n\
+            "`!sbackup` — Exporter rôles, catégories, salons et permissions en JSON\n\
              `!srestore` — Recréer une structure depuis un fichier backup.json",
             false,
         )
