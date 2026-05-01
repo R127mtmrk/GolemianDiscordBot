@@ -38,10 +38,15 @@ pub async fn handle_voice_state(ctx: &Context, old: Option<VoiceState>, new: Voi
                     .unwrap_or_else(|| "Salon".to_string());
 
                 // Créer le salon dans la même catégorie que le hub
-                let category_id = ctx
-                    .cache
-                    .channel(new_channel_id)
-                    .and_then(|c| c.parent_id);
+                let category_id = match ctx.cache.channel(new_channel_id).and_then(|c| c.parent_id) {
+                    Some(id) => Some(id),
+                    None => new_channel_id
+                        .to_channel(&ctx.http)
+                        .await
+                        .ok()
+                        .and_then(|c| c.guild())
+                        .and_then(|gc| gc.parent_id),
+                };
 
                 let mut builder =
                     CreateChannel::new(format!("🔊 {}", user_name)).kind(ChannelType::Voice);
