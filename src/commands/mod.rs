@@ -1,7 +1,9 @@
 pub mod giveaway;
 pub mod help;
 pub mod moderation;
+pub mod owner;
 pub mod poll;
 pub mod server;
 pub mod tempvc;
+pub mod ticket;
 pub mod utility;

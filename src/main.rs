@@ -2,11 +2,13 @@ mod commands;
 mod database;
 mod modlog;
 mod tempvc;
+mod ticket;
 
 use std::sync::Arc;
 
 use serenity::async_trait;
 use serenity::framework::standard::{Configuration, StandardFramework};
+use serenity::model::application::Interaction;
 use serenity::model::channel::Reaction;
 use serenity::model::gateway::Ready;
 use serenity::prelude::*;
@@ -15,9 +17,11 @@ use tracing::{error, info};
 use commands::giveaway::{check_giveaways, GIVEAWAY_GROUP};
 use commands::help::HELP_GROUP;
 use commands::moderation::MODERATION_GROUP;
+use commands::owner::OWNER_GROUP;
 use commands::poll::POLL_GROUP;
 use commands::server::SERVER_GROUP;
 use commands::tempvc::TEMPVC_GROUP;
+use commands::ticket::TICKET_GROUP;
 use commands::utility::UTILITY_GROUP;
 use database::DatabaseKey;
 
@@ -46,6 +50,10 @@ impl EventHandler for Handler {
 
     async fn voice_state_update(&self, ctx: Context, old: Option<serenity::model::voice::VoiceState>, new: serenity::model::voice::VoiceState) {
         tempvc::handle_voice_state(&ctx, old, new).await;
+    }
+
+    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        ticket::handle_interaction(&ctx, interaction).await;
     }
 
     async fn reaction_add(&self, ctx: Context, reaction: Reaction) {
@@ -135,7 +143,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .group(&HELP_GROUP)
         .group(&UTILITY_GROUP)
         .group(&SERVER_GROUP)
-        .group(&TEMPVC_GROUP);
+        .group(&TEMPVC_GROUP)
+        .group(&TICKET_GROUP)
+        .group(&OWNER_GROUP);
 
     framework.configure(Configuration::new().prefix("!").allow_dm(false));
 
